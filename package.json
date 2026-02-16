@@ -1,0 +1,26 @@
+{
+  "name": "agent-init-skills",
+  "version": "0.1.0",
+  "description": "Opinionated dev-environment setup skills for AI coding agents",
+  "bin": {
+    "agent-init-skills": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "templates"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "license": "Apache-2.0",
+  "author": "kurorosu",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kurorosu/agent-init-skills"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "@types/node": "^22.0.0"
+  }
+}

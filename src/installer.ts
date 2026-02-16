@@ -10,6 +10,10 @@ export interface InstallOptions {
   force: boolean;
 }
 
+/**
+ * ターゲットごとのインストール先ディレクトリを返す。
+ * local=true の場合はカレント配下、false の場合はホーム配下に配置する。
+ */
 function getDestDir(target: Target, local: boolean): string {
   if (target === "claude-code") {
     return local
@@ -22,10 +26,62 @@ function getDestDir(target: Target, local: boolean): string {
     : path.join(getHomeDir(), ".codex", "skills");
 }
 
+/**
+ * ターゲットごとのテンプレートソースディレクトリを返す。
+ */
 function getSourceDir(target: Target): string {
   return path.join(getTemplatesDir(), target, "skills");
 }
 
+/**
+ * childPath が basePath 配下にあるかを判定する。
+ */
+function isPathInside(childPath: string, basePath: string): boolean {
+  const rel = path.relative(basePath, childPath);
+  return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+}
+
+/**
+ * コピー対象ファイルの内容を読み込む。
+ * SKILL.md が相対参照1行のみのファイルだった場合は参照先を解決して本文を返す。
+ */
+function readFileForCopy(srcPath: string): Buffer {
+  const realSrcPath = fs.realpathSync(srcPath);
+  const rawContent = fs.readFileSync(realSrcPath);
+
+  // 一部環境では symlink を保持できず、SKILL.md が
+  // 相対パス文字列だけの通常ファイル（例: ../../../common/...）として展開される。
+  // その場合は参照先を解決し、インストール先に手順本文をコピーする。
+  if (path.basename(srcPath) !== "SKILL.md") {
+    return rawContent;
+  }
+
+  const maybeRef = rawContent.toString("utf8").trim();
+  const isSingleLine = !/[\r\n]/.test(maybeRef);
+  const looksLikeRelativeMarkdownPath = /^\.{1,2}[\\/].+\.md$/.test(maybeRef);
+  if (!isSingleLine || !looksLikeRelativeMarkdownPath) {
+    return rawContent;
+  }
+
+  const resolvedPath = path.resolve(path.dirname(srcPath), maybeRef);
+  if (!fs.existsSync(resolvedPath) || !fs.statSync(resolvedPath).isFile()) {
+    throw new Error(`Invalid SKILL.md reference: ${srcPath} -> ${maybeRef}`);
+  }
+
+  const realResolvedPath = fs.realpathSync(resolvedPath);
+  const commonRoot = fs.realpathSync(path.join(getTemplatesDir(), "common"));
+  if (!isPathInside(realResolvedPath, commonRoot)) {
+    throw new Error(
+      `Refusing SKILL.md reference outside templates/common: ${srcPath} -> ${maybeRef}`,
+    );
+  }
+
+  return fs.readFileSync(realResolvedPath);
+}
+
+/**
+ * ディレクトリ内容を再帰的にコピーする。
+ */
 function copyDirContents(src: string, dest: string): void {
   for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
     const srcPath = path.join(src, entry.name);
@@ -34,12 +90,16 @@ function copyDirContents(src: string, dest: string): void {
       fs.mkdirSync(destPath, { recursive: true });
       copyDirContents(srcPath, destPath);
     } else {
-      const content = fs.readFileSync(fs.realpathSync(srcPath));
+      const content = readFileForCopy(srcPath);
       fs.writeFileSync(destPath, content);
     }
   }
 }
 
+/**
+ * 指定ターゲットの各 skill をコピーする。
+ * force=false で既存 skill がある場合はスキップする。
+ */
 function copySkills(target: Target, local: boolean, force: boolean): void {
   const srcDir = getSourceDir(target);
   const destDir = getDestDir(target, local);
@@ -73,6 +133,10 @@ function copySkills(target: Target, local: boolean, force: boolean): void {
   }
 }
 
+/**
+ * インストール処理の公開エントリーポイント。
+ * target=both の場合は claude-code / codex の順で処理する。
+ */
 export function install(options: InstallOptions): void {
   const targets: Target[] =
     options.target === "both"
@@ -81,7 +145,7 @@ export function install(options: InstallOptions): void {
 
   for (const target of targets) {
     const destDir = getDestDir(target, options.local);
-    console.log(`\nInstalling skills for ${target} → ${destDir}`);
+    console.log(`\nInstalling skills for ${target} -> ${destDir}`);
     copySkills(target, options.local, options.force);
   }
 

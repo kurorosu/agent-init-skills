@@ -23,7 +23,7 @@ Usage:
 Options:
   --target <agent>   Target agent: claude-code, codex, or both (default: both)
   --local            Install to current directory instead of home directory
-  --force            Overwrite existing skills
+  --overwrite        Overwrite existing skills
   --help             Show this help message
 `);
 }
@@ -42,7 +42,12 @@ if (command !== "install") {
 }
 
 const local = args.includes("--local");
-const force = args.includes("--force");
+const overwrite = args.includes("--overwrite");
+
+if (args.includes("--force")) {
+  console.error("`--force` has been removed. Use `--overwrite` instead.");
+  process.exit(1);
+}
 
 let target: Target | "both" = "both";
 const targetIdx = args.indexOf("--target");
@@ -57,4 +62,4 @@ if (targetIdx !== -1) {
   }
 }
 
-install({ target, local, force });
+install({ target, local, overwrite });

@@ -1,6 +1,6 @@
 ---
 name: init-github
-description: "Generate .github/ templates including Issue Templates (bug report, feature request, documentation request, refactor request, test request, blank issue config) and a PR Template. Use when setting up GitHub templates for a new project or when asked to create issue/PR templates."
+description: "Create or update `.github` Issue/PR templates only when the user explicitly requests GitHub template setup (for example `/init-github`, 'set up .github templates', or 'create issue/PR templates'). Do not trigger for drafting PR text or other unrelated Markdown editing."
 ---
 
 # GitHub Templates Setup
@@ -9,14 +9,24 @@ Generate the following files under `.github/` in the project root.
 
 ## Steps
 
-### 1. Create Issue Templates
+### 1. Decide Confirmation Mode
+
+Check whether `.github/` already exists in the project root.
+
+- If `.github/` does not exist:
+  - Create `.github/` and `.github/ISSUE_TEMPLATE/`.
+  - Create all target files directly without overwrite/skip prompts.
+- If `.github/` exists:
+  - For each target file, only ask when that file already exists:
+    - If it exists, ask: "[filename] already exists. Overwrite or skip?" and follow the user's choice.
+    - If it does not exist, create it directly.
+
+Never ask a single global "overwrite all / skip all" question.
+
+### 2. Create Issue Templates
 
 Create `.github/ISSUE_TEMPLATE/` directory with the following files.
 All templates use Markdown front matter format.
-
-For each file, check if it already exists.
-- If it exists, ask the user: "[filename] already exists. Overwrite or skip?" and follow their choice
-- If it does not exist, create it
 
 ### `.github/ISSUE_TEMPLATE/bug_report.md`
 
@@ -198,11 +208,11 @@ labels: test
 blank_issues_enabled: true
 ```
 
-### 2. Create Pull Request Template
+### 3. Create Pull Request Template
 
 Check if `.github/pull_request_template.md` already exists.
-- If it exists, ask the user: "pull_request_template.md already exists. Overwrite or skip?" and follow their choice
-- If it does not exist, create it
+- If `.github/` exists and the file already exists, ask: "pull_request_template.md already exists. Overwrite or skip?" and follow the user's choice
+- Otherwise, create it directly
 
 ### `.github/pull_request_template.md`
 
@@ -236,5 +246,8 @@ Closes #
 
 ## Instructions
 
-1. Always check each file for existence before creating it
-2. Keep the branch prefix conventions consistent across all templates
+1. First determine whether `.github/` exists.
+2. If `.github/` does not exist, create all target files without overwrite/skip prompts.
+3. If `.github/` exists, ask overwrite/skip per existing file.
+4. Do not ask a global "overwrite all / skip all" question.
+5. Keep the branch prefix conventions consistent across all templates.

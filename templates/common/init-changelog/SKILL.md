@@ -1,6 +1,6 @@
 ---
 name: init-changelog
-description: "Set up CHANGELOG.md in Keep a Changelog format with proper versioning and archive structure. Use when initializing or resetting a changelog for a project."
+description: "Initialize or reset changelog files only when the user explicitly requests changelog setup (for example `/init-changelog`, 'set up changelog', or 'initialize CHANGELOG.md'). Do not trigger for routine changelog edits or unrelated Markdown tasks."
 ---
 
 # Changelog Setup
@@ -9,7 +9,18 @@ Generate `CHANGELOG.md` and the `changelogs/` archive directory in the project r
 
 ## Steps
 
-### 1. Detect Project Version
+### 1. Decide Confirmation Mode
+
+Check whether changelog targets already exist:
+- `CHANGELOG.md`
+- `changelogs/README.md` (and implicitly the `changelogs/` directory)
+
+Apply this rule:
+- If neither target exists, create all targets directly without overwrite/skip prompts.
+- If one or more targets exist, ask overwrite/skip only for each existing target file.
+- Do not ask a single global "overwrite all / skip all" question.
+
+### 2. Detect Project Version
 
 Check for the current version in:
 - `package.json` (Node.js)
@@ -19,11 +30,11 @@ Check for the current version in:
 
 If no version is found, use `0.1.0`.
 
-### 2. Generate `CHANGELOG.md`
+### 3. Generate `CHANGELOG.md`
 
-First, check if `CHANGELOG.md` already exists in the project root.
-- If it exists, ask the user: "CHANGELOG.md already exists. Overwrite or skip?" and follow their choice
-- If it does not exist, create it
+Check whether `CHANGELOG.md` already exists.
+- If it exists, ask: "CHANGELOG.md already exists. Overwrite or skip?" and follow the user's choice
+- If it does not exist, create it directly
 
 Create `CHANGELOG.md` with the following content:
 
@@ -54,11 +65,13 @@ Older version histories are archived in the [`changelogs/`](changelogs/) directo
 
 Replace `0.1.0` with the detected version and `YYYY-MM-DD` with today's date.
 
-### 3. Generate `changelogs/README.md`
+### 4. Generate `changelogs/README.md`
 
-Check if the `changelogs/` directory already exists in the project root.
-- If it exists, ask the user: "changelogs/ directory already exists. Overwrite or skip?" and follow their choice
-- If it does not exist, create the directory
+Ensure the `changelogs/` directory exists (create it if missing).
+
+Then check whether `changelogs/README.md` already exists.
+- If it exists, ask: "changelogs/README.md already exists. Overwrite or skip?" and follow the user's choice
+- If it does not exist, create it directly
 
 Create `changelogs/README.md`:
 
@@ -83,21 +96,11 @@ When the main `CHANGELOG.md` grows too long, move completed version entries here
 4. Update the table above
 ```
 
-### 4. Append Changelog Rules to `CLAUDE.md`
+### 5. Reference Existing Change Rules
 
-Check if `CLAUDE.md` exists in the project root.
-- If it exists and already contains a `## Changelog` section, skip this step
-- If it exists but does not contain a `## Changelog` section, append the following section to it
-- If it does not exist, create it with the following content
+Do not create or modify `CLAUDE.md` / `AGENTS.md` in this skill.
 
-```markdown
-## Changelog
-
-- Before committing, record your changes under the `[Unreleased]` section in `CHANGELOG.md`
-- Use the appropriate category: Added, Changed, Deprecated, Removed, Fixed, Security
-- On release, rename `[Unreleased]` to the new version number with today's date
-- When `CHANGELOG.md` grows too long, archive older entries to `changelogs/X.Y.x.md` (see `changelogs/README.md`)
-```
+If `README.md` contains changelog/update contribution rules, read and follow those rules when updating `CHANGELOG.md`.
 
 ## Change Categories
 
@@ -114,9 +117,12 @@ Use these categories under each version heading:
 
 ## Instructions
 
-1. Detect the project version before generating the file
-2. Use today's date for the initial version entry
-3. If a `CHANGELOG.md` already exists, ask the user before overwriting
-4. Always create the `changelogs/` directory and `README.md` together
-5. Keep the `[Unreleased]` section at the top — this is where ongoing changes are tracked
-6. Append changelog rules to `CLAUDE.md` (create if not exists)
+1. Trigger this skill only when changelog setup is explicitly requested.
+2. Determine whether targets already exist before creating files.
+3. Ask overwrite/skip per existing target file (`CHANGELOG.md`, `changelogs/README.md`).
+4. Do not ask a global "overwrite all / skip all" question.
+5. Detect the project version before generating the initial release section.
+6. Use today's date for the initial version entry.
+7. Always ensure `changelogs/` exists when creating `changelogs/README.md`.
+8. Keep the `[Unreleased]` section at the top — this is where ongoing changes are tracked.
+9. Do not create or modify `CLAUDE.md` / `AGENTS.md` in this skill.

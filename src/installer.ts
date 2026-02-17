@@ -7,7 +7,7 @@ export type Target = "claude-code" | "codex";
 export interface InstallOptions {
   target: Target | "both";
   local: boolean;
-  force: boolean;
+  overwrite: boolean;
 }
 
 /**
@@ -98,9 +98,85 @@ function copyDirContents(src: string, dest: string): void {
 
 /**
  * 指定ターゲットの各 skill をコピーする。
- * force=false で既存 skill がある場合はスキップする。
+ * overwrite=false で既存 skill がある場合はスキップする。
  */
-function copySkills(target: Target, local: boolean, force: boolean): void {
+/**
+ * 置換処理に使う一時ディレクトリの一意なパスを生成する。
+ */
+function getUniqueSiblingPath(parentDir: string, skillName: string, marker: string): string {
+  for (let i = 0; i < 1000; i += 1) {
+    const candidate = path.join(parentDir, `${skillName}.${marker}.${Date.now()}-${process.pid}-${i}`);
+    if (!fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  throw new Error(`Failed to allocate temporary directory path for ${skillName}`);
+}
+
+/**
+ * 一時ディレクトリ削除の失敗を警告ログに落として処理継続する。
+ */
+function removeDirBestEffort(dirPath: string): void {
+  if (!fs.existsSync(dirPath)) {
+    return;
+  }
+
+  try {
+    fs.rmSync(dirPath, { recursive: true, force: true });
+  } catch (error) {
+    console.warn(
+      `  [warn] could not remove temporary directory: ${dirPath} (${(error as Error).message})`,
+    );
+  }
+}
+
+/**
+ * 既存 skill ディレクトリを安全に置換する。
+ * 1) 新規内容を一時ディレクトリに作成
+ * 2) 既存をバックアップへリネーム
+ * 3) 新規を本番名へリネーム
+ * 4) 失敗時は可能な範囲でロールバック
+ */
+function replaceSkillDirectory(skillSrc: string, skillDest: string): void {
+  const parentDir = path.dirname(skillDest);
+  const skillName = path.basename(skillDest);
+  const stagingDir = getUniqueSiblingPath(parentDir, skillName, "__new__");
+  const backupDir = getUniqueSiblingPath(parentDir, skillName, "__old__");
+
+  fs.mkdirSync(stagingDir, { recursive: true });
+  copyDirContents(skillSrc, stagingDir);
+
+  let movedToBackup = false;
+
+  try {
+    if (fs.existsSync(skillDest)) {
+      fs.renameSync(skillDest, backupDir);
+      movedToBackup = true;
+    }
+
+    fs.renameSync(stagingDir, skillDest);
+
+    if (movedToBackup) {
+      removeDirBestEffort(backupDir);
+    }
+  } catch (error) {
+    removeDirBestEffort(stagingDir);
+
+    if (movedToBackup && !fs.existsSync(skillDest) && fs.existsSync(backupDir)) {
+      fs.renameSync(backupDir, skillDest);
+    }
+
+    throw error;
+  }
+}
+
+/**
+ * 指定ターゲットの各 skill をコピーする。
+ * overwrite=false の場合、既存 skill はスキップする。
+ * overwrite=true の場合、対象 skill ディレクトリ単位で安全置換する。
+ */
+function copySkills(target: Target, local: boolean, overwrite: boolean): void {
   const srcDir = getSourceDir(target);
   const destDir = getDestDir(target, local);
 
@@ -122,14 +198,19 @@ function copySkills(target: Target, local: boolean, force: boolean): void {
     const skillSrc = path.join(srcDir, skillDir.name);
     const skillDest = path.join(destDir, skillDir.name);
 
-    if (fs.existsSync(skillDest) && !force) {
-      console.log(`  [skip] ${skillDir.name} (already exists, use --force to overwrite)`);
+    if (fs.existsSync(skillDest) && !overwrite) {
+      console.log(`  [skip] ${skillDir.name} (already exists, use --overwrite to replace)`);
       continue;
     }
 
-    fs.mkdirSync(skillDest, { recursive: true });
-    copyDirContents(skillSrc, skillDest);
-    console.log(`  [ok]   ${skillDir.name}`);
+    if (fs.existsSync(skillDest)) {
+      replaceSkillDirectory(skillSrc, skillDest);
+      console.log(`  [replace] ${skillDir.name}`);
+    } else {
+      fs.mkdirSync(skillDest, { recursive: true });
+      copyDirContents(skillSrc, skillDest);
+      console.log(`  [ok]      ${skillDir.name}`);
+    }
   }
 }
 
@@ -146,7 +227,7 @@ export function install(options: InstallOptions): void {
   for (const target of targets) {
     const destDir = getDestDir(target, options.local);
     console.log(`\nInstalling skills for ${target} -> ${destDir}`);
-    copySkills(target, options.local, options.force);
+    copySkills(target, options.local, options.overwrite);
   }
 
   console.log("\nDone!");
